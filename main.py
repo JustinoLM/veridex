@@ -326,18 +326,27 @@ def render_propagation_step(step: PropagationStep) -> str:
     )
 
 
-def render_case_split(result: CaseSplitResult) -> str:
-    """Turn one CaseSplitResult into a short natural-language paragraph.
+def render_case_split(result: CaseSplitResult) -> list[str]:
+    """Turn one CaseSplitResult into a short sequence of natural-language lines.
 
     This is the harder writing problem flagged in SPEC_step5.md: unlike
     the tactic and propagation, case-split isn't a clever inference, it's
     exhaustive checking - and the explanation says so plainly rather than
-    dressing it up. Per SPEC_step6.md, the paragraph always covers, in
+    dressing it up. Per SPEC_step6.md, the explanation always covers, in
     order: (1) an honest statement of how many values were unknown and
     that every combination was checked, (2) the winning combination in
     plain language, (3) a per-person confirmation that each statement's
     truth value matches its speaker's resolved type, and (4) one concrete
     rejected combination as a counterexample.
+
+    This returns one line per element (with the per-person consistency
+    checks broken out further, one line each) rather than a single dense
+    paragraph, purely so the caller can print it as a short, readable
+    list instead of a wall of text - a cosmetic choice, not a change to
+    what's being said. Lines meant to be printed as sub-points (the
+    per-person consistency checks) already carry their own extra leading
+    indentation, so the caller only needs to apply one consistent base
+    indent to every line returned here.
 
     Args:
         result: A CaseSplitResult as produced by case_split_fallback().
@@ -347,19 +356,20 @@ def render_case_split(result: CaseSplitResult) -> str:
             a warning elsewhere instead of rendered here.
 
     Returns:
-        A short natural-language paragraph (several sentences).
+        A list of short natural-language lines, meant to be printed in
+        order, one per line.
     """
-    sentences = []
+    lines = []
 
     # Element 1: honest framing. Exhaustive checking is the whole point
-    # here, so the sentence says exactly that instead of implying insight.
+    # here, so the line says exactly that instead of implying insight.
     unknown_names = ", ".join(
         f"{person.capitalize()}.{attribute}" for person, attribute in result.remaining_unknowns
     )
-    sentences.append(
-        f"At this point {len(result.remaining_unknowns)} value(s) were still unknown "
-        f"({unknown_names}), so every one of the {result.total_combinations} possible "
-        "combinations was checked systematically rather than deduced directly."
+    lines.append(
+        f"{len(result.remaining_unknowns)} value(s) were still unknown ({unknown_names}); "
+        f"every one of the {result.total_combinations} possible combinations was checked "
+        "systematically rather than deduced directly."
     )
 
     # Element 2: the winning combination, in the same "knight/knave,
@@ -367,22 +377,24 @@ def render_case_split(result: CaseSplitResult) -> str:
     winning_facts = "; ".join(
         _describe_fact(key, result.winning_combination[key]) for key in result.remaining_unknowns
     )
-    sentences.append(f"Exactly one combination survived every check: {winning_facts}.")
+    lines.append(f"Winning combination: {winning_facts}.")
 
     # Element 3: per-person consistency - each statement's truth value
     # matches its speaker's resolved type, confirmed using the truth
     # values already computed when the winning combination was found.
-    consistency_clauses = []
-    for person, statement_truth in result.statement_truth_by_person.items():
-        is_knight = result.winning_combination[(person, "is_knight")]
-        role = "knight" if is_knight else "knave"
-        truth_word = "true" if statement_truth else "false"
-        consistency_clauses.append(
-            f"{person.capitalize()}'s statement evaluates to {truth_word}, matching "
-            f"{person.capitalize()} being a {role}"
-        )
-    if consistency_clauses:
-        sentences.append("; ".join(consistency_clauses) + ".")
+    # Printed as its own heading line plus one indented sub-point per
+    # person, instead of one run-on clause, so each person's check is
+    # easy to scan independently.
+    if result.statement_truth_by_person:
+        lines.append("Consistency check:")
+        for person, statement_truth in result.statement_truth_by_person.items():
+            is_knight = result.winning_combination[(person, "is_knight")]
+            role = "knight" if is_knight else "knave"
+            truth_word = "true" if statement_truth else "false"
+            lines.append(
+                f"    {person.capitalize()}'s statement evaluates to {truth_word}, "
+                f"matching {person.capitalize()} being a {role}."
+            )
 
     # Element 4: one concrete counterexample, naming the specific
     # combination tried and exactly which check it violated.
@@ -393,13 +405,13 @@ def render_case_split(result: CaseSplitResult) -> str:
         )
         expected_word = "true" if rejected.expected_value else "false"
         actual_word = "true" if rejected.actual_value else "false"
-        sentences.append(
-            f"For example, the combination where {rejected_facts} was rejected: it "
+        lines.append(
+            f"Counterexample: the combination where {rejected_facts} was rejected - it "
             f"required {rejected.failed_check} to be {expected_word}, but it actually "
             f"evaluated to {actual_word}."
         )
 
-    return " ".join(sentences)
+    return lines
 
 
 def _describe_fact(key: tuple[str, str], value: bool) -> str:
@@ -501,11 +513,14 @@ def run_deduction_pipeline(puzzle: Puzzle, description: str) -> dict:
     # render_propagation_step(), and case-split's render_case_split()
     # (both new this step, see SPEC_step6.md).
     print("Tactic (hypothesize-and-check on knight/knave status):")
+    print()
     if tactic_rounds:
-        for round_number, steps in tactic_rounds:
+        for round_index, (round_number, steps) in enumerate(tactic_rounds):
+            if round_index > 0:
+                print()
             print(f"  Round {round_number}:")
             for step in steps:
-                print(f"    {render_tactic_step(step)}")
+                print(f"    - {render_tactic_step(step)}")
     else:
         # Required by SPEC_step5.md: state this explicitly (as with
         # Puzzle 2, where the tactic resolves nobody) rather than just
@@ -514,11 +529,14 @@ def run_deduction_pipeline(puzzle: Puzzle, description: str) -> dict:
     print()
 
     print("Backward propagation:")
+    print()
     if propagation_rounds:
-        for round_number, steps in propagation_rounds:
+        for round_index, (round_number, steps) in enumerate(propagation_rounds):
+            if round_index > 0:
+                print()
             print(f"  Round {round_number}:")
             for step in steps:
-                print(f"    {render_propagation_step(step)}")
+                print(f"    - {render_propagation_step(step)}")
     else:
         # Required by SPEC_step4.md (and still true in Step 6, per
         # SPEC_step6.md's stated limitation): state this explicitly
@@ -533,12 +551,14 @@ def run_deduction_pipeline(puzzle: Puzzle, description: str) -> dict:
     unknown_before_case_split = [key for key in all_keys if key not in assignment]
 
     print("Case-split fallback:")
+    print()
     if not unknown_before_case_split:
         print("  Not needed - the tactic and propagation already resolved everything.")
     else:
         case_result = case_split_fallback(puzzle, assignment)
         if case_result.winning_combination is not None:
-            print(f"  {render_case_split(case_result)}")
+            for line in render_case_split(case_result):
+                print(f"  {line}")
         else:
             print(
                 f"  WARNING: expected exactly one consistent completion of the "
@@ -548,6 +568,7 @@ def run_deduction_pipeline(puzzle: Puzzle, description: str) -> dict:
     print()
 
     print("Final solution:")
+    print()
     still_unknown = [key for key in all_keys if key not in assignment]
     if still_unknown:
         names = ", ".join(f"{person.capitalize()}.{attribute}" for person, attribute in still_unknown)
@@ -669,8 +690,9 @@ def run_propagation_checks() -> None:
     # required validation of render_propagation_step() against real
     # (standalone) propagation output.
     print("Natural-language rendering of the fact-forcing checks above:")
+    print()
     for rendered in rendered_examples:
-        print(f"  {rendered}")
+        print(f"  - {rendered}")
     print()
 
 
