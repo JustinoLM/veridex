@@ -7,6 +7,7 @@ results in plain language.
 """
 
 from expressions import And, Expr, Iff, Implies, IsKnave, IsKnight, Not, Or
+from generator import describe_generated_puzzle, generate_puzzle
 from puzzles import (
     PUZZLE_1,
     PUZZLE_1_DESCRIPTION,
@@ -31,6 +32,10 @@ from solver import (
 # are expected to stabilize in one or two rounds; this cap exists only to
 # guarantee termination if that assumption is ever wrong.
 MAX_PIPELINE_ROUNDS = 10
+
+# How many freshly generated puzzles to run the full pipeline on, per
+# SPEC_step7.md's output requirements.
+NUM_GENERATED_PUZZLES = 3
 
 # Step 1's original printed numbers for this exact puzzle. Puzzle 1 in
 # this step is meant to reproduce them exactly using the new AST-based
@@ -581,6 +586,44 @@ def run_deduction_pipeline(puzzle: Puzzle, description: str) -> dict:
     return assignment
 
 
+def run_generated_puzzles() -> None:
+    """Generate NUM_GENERATED_PUZZLES new random puzzles and solve each one.
+
+    Step 7's whole point is to confirm that the full Steps 3-6 deduction
+    pipeline is genuinely generic, not something that happens to work
+    only because it was written and tuned against Puzzle 1 and Puzzle
+    2's specific shape. generate_puzzle() only guarantees a *unique*
+    solution via the Step 2 brute-force solver - it says nothing about
+    whether the tactic, propagation, or case-split fallback will be able
+    to resolve it. Calling run_deduction_pipeline() unmodified on its
+    output, and getting a full resolution back, is exactly that
+    confirmation.
+
+    For each generated puzzle, this prepends how many attempts it took
+    to find a unique-solution puzzle onto the usual plain-language
+    description, so that line appears alongside the puzzle statement and
+    the full explanation without needing any change to
+    run_deduction_pipeline() itself.
+    """
+    print_header("GENERATED PUZZLES")
+    print()
+
+    for index in range(1, NUM_GENERATED_PUZZLES + 1):
+        generated = generate_puzzle()
+        # Give each generated puzzle a distinct, numbered name so the
+        # section headers below don't all read identically.
+        generated.puzzle.name = f"Generated puzzle {index}"
+
+        description = (
+            f"Found after {generated.attempts} attempt(s) - a candidate "
+            "puzzle is discarded and a new one generated unless it has "
+            "exactly one valid solution.\n\n"
+            f"{describe_generated_puzzle(generated.puzzle)}"
+        )
+
+        run_deduction_pipeline(generated.puzzle, description)
+
+
 def run_propagation_checks() -> None:
     """Run small, hand-constructed checks that exercise propagate() directly.
 
@@ -714,6 +757,10 @@ def main() -> None:
     # fully solved.
     run_deduction_pipeline(PUZZLE_1, PUZZLE_1_DESCRIPTION)
     run_deduction_pipeline(PUZZLE_2, PUZZLE_2_DESCRIPTION)
+
+    # Step 7: generate new puzzles (not hand-written) and confirm the
+    # same pipeline solves them too, with no puzzle-specific code.
+    run_generated_puzzles()
 
 
 if __name__ == "__main__":

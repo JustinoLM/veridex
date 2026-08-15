@@ -34,7 +34,7 @@ regardless of which of the three techniques actually resolved it.
 
 ## Scope
 
-This is the sixth step of a larger project. The solver still brute-forces
+This is the seventh step of a larger project. The solver still brute-forces
 every puzzle as in Step 2. Step 3 added a three-valued evaluator (True /
 False / Unknown) and one deduction tactic on top of it - hypothesize each
 person's knight/knave status and check whether either hypothesis leads to a
@@ -68,6 +68,16 @@ language explanation instead of a raw structured summary:
   consistency confirmation, and one concrete rejected combination as a
   counterexample.
 
+Step 7 adds a puzzle generator (`generator.py`), so new puzzles no longer
+have to be hand-written. It builds random two-person statements out of the
+same And/Or/Iff/IsKnight/IsKnave building blocks the hand-written puzzles
+use, then discards and retries candidates until the Step 2 brute-force
+solver confirms one has exactly one valid solution. The full Step 3-6
+deduction pipeline then runs against each generated puzzle completely
+unmodified - confirming that pipeline was always genuinely generic, rather
+than something that happened to work only because it was tuned against
+Puzzle 1 and Puzzle 2's specific shape.
+
 Not included yet (planned for later steps):
 
 - Backward propagation for "exactly N" / "at least N" / "at most N"
@@ -75,6 +85,8 @@ Not included yet (planned for later steps):
 - Smarter case-split ordering/heuristics
 - A unified "explain the whole puzzle as one flowing narrative" mode,
   rather than one explanation per resolved value printed in sequence
-- A puzzle generator, so new puzzles don't have to be hand-written
-- Difficulty rating for generated puzzles
+- A guilt axis, global constraints, or a richer statement grammar
+  (`Implies`, counting nodes) in generated puzzles
+- Generated puzzles with more than two people
+- Difficulty rating or deduplication for generated puzzles
 - Any interface beyond terminal output
