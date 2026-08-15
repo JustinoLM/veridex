@@ -18,8 +18,14 @@ extends random_statement() to also generate leaves over is_guilty, and
 adds a second generation mode - "whodunit" puzzles, matching Puzzle 1's
 shape - that use both attributes plus a randomly generated guilt
 constraint. Step 7's is_knight-only mode is kept intact rather than
-replaced. Richer grammars and more people are still left for a later
-step.
+replaced. Step 9 (see SPEC_step9.md) generalizes generate_puzzle() (the
+is_knight-only mode only) to any calibrated number of people instead of
+a hardcoded two - random_statement() itself already worked for any
+number of people, so the only real change needed was generate_puzzle()
+taking `people` as a parameter instead of hardcoding it internally. The
+whodunit generator stays fixed at exactly two people; see
+SPEC_step9.md's "Why whodunit stays at 2 people" for the calibration
+finding behind that decision.
 """
 
 import random
@@ -29,9 +35,20 @@ from expressions import And, Expr, Iff, IsGuilty, IsInnocent, IsKnave, IsKnight,
 from puzzles import Puzzle
 from solver import solve
 
-# The two people every generated puzzle has (see SPEC_step7.md: exactly
-# 2 people, reusing the same naming style as Puzzle 1/2).
-GENERATED_PEOPLE = ["ada", "bo"]
+# The pool of names generated puzzles draw people from, in order. Ada
+# and Bo match Puzzle 1's names; Cal onward reuses Puzzle 2's naming
+# convention (see SPEC_step9.md). Sized to 5 - the highest people count
+# generate_puzzle() has actually been calibrated at (see the table in
+# SPEC_step9.md) - since going beyond that is explicitly out of scope.
+NAME_POOL = ["ada", "bo", "cal", "dee", "eli"]
+
+# The two people Step 7's is_knight-only demo and Step 8's whodunit
+# generator both use. Step 9 keeps the whodunit generator fixed at
+# exactly these two people (see SPEC_step9.md's "Why whodunit stays at
+# 2 people") and keeps Step 7's original 2-person demonstration puzzles
+# unchanged (regression check), so this stays a fixed 2-person slice of
+# NAME_POOL rather than becoming configurable.
+GENERATED_PEOPLE = NAME_POOL[:2]
 
 # The recursion depth used unless a caller overrides it. This is the
 # exact value the calibration numbers in SPEC_step7.md were measured
@@ -143,9 +160,17 @@ class GeneratedPuzzle:
 
 
 def generate_puzzle(
-    max_attempts: int = 100, max_depth: int = DEFAULT_MAX_DEPTH
+    people: list[str], max_attempts: int = 100, max_depth: int = DEFAULT_MAX_DEPTH
 ) -> GeneratedPuzzle:
-    """Generate random puzzles until one has exactly one valid solution.
+    """Generate random is_knight-only puzzles until one has exactly one valid solution.
+
+    Step 7 first wrote this fixed to exactly GENERATED_PEOPLE (two
+    people, hardcoded internally). Step 9 generalizes it to any
+    calibrated number of people by taking `people` as a parameter
+    instead (see SPEC_step9.md) - random_statement() and Puzzle
+    construction already worked for any number of people without
+    modification, so this signature change is the only thing that was
+    actually needed to unblock larger puzzles.
 
     Each attempt builds a brand new random statement (via
     random_statement()) for every person, assembles them into a Puzzle
@@ -158,11 +183,17 @@ def generate_puzzle(
     puzzle directly.
 
     Args:
-        max_attempts: The most attempts to make before giving up. The
-            calibrated default of 100 is a wide safety margin over the
-            worst case actually observed (20 attempts across 2000
-            simulated trials), not a number expected to be reached in
-            practice.
+        people: The names of the people this puzzle should have. Every
+            generated statement draws its subjects from this list, and
+            the resulting Puzzle's `people` field is set to it directly.
+        max_attempts: The most attempts to make before giving up.
+            SPEC_step9.md's calibration (1500 trials per size) found the
+            acceptance rate stays roughly stable as people are added -
+            26-34% for 2 to 5 people, with observed worst cases no
+            higher than 23 attempts - so the original default of 100
+            (calibrated against 2 people alone, worst case 20 across
+            2000 trials) still gives a wide safety margin at every
+            people count this has actually been calibrated at.
         max_depth: The max_depth passed through to random_statement()
             for every person's statement.
 
@@ -178,8 +209,6 @@ def generate_puzzle(
             luck, so this is raised rather than silently returning a
             broken puzzle or looping forever.
     """
-    people = list(GENERATED_PEOPLE)
-
     for attempt in range(1, max_attempts + 1):
         statements = {
             person: random_statement(people, max_depth, allowed_attrs=["is_knight"])
@@ -187,7 +216,7 @@ def generate_puzzle(
         }
         candidate = Puzzle(
             name="Generated puzzle",
-            people=people,
+            people=list(people),
             attributes=["is_knight"],
             statements=statements,
             constraints=[],
@@ -369,6 +398,43 @@ def _render_self_or_named(person: str, speaker: str | None, role: str) -> str:
     return f"{person.capitalize()} is {role}"
 
 
+# English count words for describe_generated_puzzle()'s opening
+# sentence ("Two people, ...", "Four people, ..."), covering every
+# people count generate_puzzle() has actually been calibrated at (see
+# SPEC_step9.md). Puzzle 2's hand-written description already uses this
+# same word-form convention ("Three people, Ada, Bo, and Cal, ...").
+# Before Step 9, this sentence hardcoded the literal word "Two" - that
+# worked only because generate_puzzle() always produced exactly two
+# people; generalizing it to more people (see generate_puzzle()) would
+# otherwise have silently printed "Two people" on a puzzle with four.
+_COUNT_WORDS = {2: "Two", 3: "Three", 4: "Four", 5: "Five"}
+
+
+def _join_people(people: list[str]) -> str:
+    """Join capitalized person names into a natural English list.
+
+    Two names join with a plain "and" ("Ada and Bo"); three or more use
+    an Oxford comma before the final "and" ("Ada, Bo, and Cal"),
+    matching the convention Puzzle 2's hand-written description already
+    uses. Before Step 9, describe_generated_puzzle() only ever had
+    exactly two names to join, so a plain " and ".join() sufficed; that
+    stops reading naturally once generate_puzzle() can produce more than
+    two people (see SPEC_step9.md).
+
+    Args:
+        people: The person names to join, in order. Assumed to have at
+            least two entries, since every puzzle has at least two
+            people.
+
+    Returns:
+        A single English string naming everyone in `people`.
+    """
+    names = [person.capitalize() for person in people]
+    if len(names) == 2:
+        return f"{names[0]} and {names[1]}"
+    return ", ".join(names[:-1]) + f", and {names[-1]}"
+
+
 def describe_generated_puzzle(puzzle: Puzzle) -> str:
     """Build a plain-language description of a generated puzzle.
 
@@ -381,15 +447,17 @@ def describe_generated_puzzle(puzzle: Puzzle) -> str:
     generated puzzles never have any (see SPEC_step7.md).
 
     Args:
-        puzzle: A puzzle produced by generate_puzzle().
+        puzzle: A puzzle produced by generate_puzzle(), with any number
+            of people (see SPEC_step9.md).
 
     Returns:
         A multi-paragraph description string, in the same shape as the
         hand-written puzzle descriptions elsewhere in this project.
     """
-    names = " and ".join(person.capitalize() for person in puzzle.people)
+    count_word = _COUNT_WORDS.get(len(puzzle.people), str(len(puzzle.people)))
+    names = _join_people(puzzle.people)
     lines = [
-        f"Two people, {names}, are each either a knight (always tells the "
+        f"{count_word} people, {names}, are each either a knight (always tells the "
         "truth) or a knave (always lies). There is no guilt axis in this "
         "puzzle - only knight/knave status.",
         "",

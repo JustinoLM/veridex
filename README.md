@@ -34,7 +34,7 @@ regardless of which of the three techniques actually resolved it.
 
 ## Scope
 
-This is the eighth step of a larger project. The solver still brute-forces
+This is the ninth step of a larger project. The solver still brute-forces
 every puzzle as in Step 2. Step 3 added a three-valued evaluator (True /
 False / Unknown) and one deduction tactic on top of it - hypothesize each
 person's knight/knave status and check whether either hypothesis leads to a
@@ -87,6 +87,21 @@ solver, and the full Step 3-6 pipeline runs against each generated
 whodunit puzzle completely unmodified, same as Step 7's puzzles. Step 7's
 is_knight-only generator is unchanged and still runs alongside it.
 
+Step 9 generalizes the `is_knight`-only generator to more than two people.
+The random statement builder already worked for any number of people; the
+generator function itself was the part actually fixed to exactly two, so
+that was the one thing changed - it now takes the people list as a
+parameter instead of hardcoding it. Acceptance rate for a well-posed
+puzzle stays roughly stable as people are added (checked directly, not
+assumed), so the demonstration puzzle for this step uses four people -
+noticeably bigger than anything generated so far, while `2^4 = 16`
+candidate assignments keeps brute-force verification instant. The
+whodunit generator from Step 8 stays at exactly two people: extending it
+was tested by simulation and found to scale very badly, since a single
+random constraint doesn't get proportionally more constraining as more
+people are added. That is left for a future step that can generate
+constraints more deliberately, not forced into this one.
+
 ## Known quirks
 
 The random statement/constraint generator can occasionally produce a
@@ -106,6 +121,8 @@ Not included yet (planned for later steps):
 - A unified "explain the whole puzzle as one flowing narrative" mode,
   rather than one explanation per resolved value printed in sequence
 - `Implies` or counting nodes in generated statements/constraints
-- Generated puzzles with more than two people
+- Generated `is_knight`-only puzzles with more than five people (not
+  calibrated)
+- Generated whodunit puzzles with more than two people (see Step 9 above)
 - Difficulty rating or deduplication for generated puzzles
 - Any interface beyond terminal output

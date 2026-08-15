@@ -8,6 +8,8 @@ results in plain language.
 
 from expressions import And, Expr, Iff, Implies, IsKnave, IsKnight, Not, Or
 from generator import (
+    GENERATED_PEOPLE,
+    NAME_POOL,
     describe_generated_puzzle,
     describe_generated_whodunit_puzzle,
     generate_puzzle,
@@ -45,6 +47,12 @@ NUM_GENERATED_PUZZLES = 3
 # How many freshly generated whodunit puzzles to run the full pipeline
 # on, per SPEC_step8.md's output requirements.
 NUM_GENERATED_WHODUNIT_PUZZLES = 3
+
+# How many people the Step 9 is_knight-only demonstration puzzle uses -
+# large enough to be meaningfully bigger than anything generated in
+# Step 7 or Step 8 (which both stay at 2), small enough that 2**4 = 16
+# brute-force candidates keeps verification instant (see SPEC_step9.md).
+STEP_9_DEMO_PEOPLE_COUNT = 4
 
 # Step 1's original printed numbers for this exact puzzle. Puzzle 1 in
 # this step is meant to reproduce them exactly using the new AST-based
@@ -618,7 +626,7 @@ def run_generated_puzzles() -> None:
     print()
 
     for index in range(1, NUM_GENERATED_PUZZLES + 1):
-        generated = generate_puzzle()
+        generated = generate_puzzle(GENERATED_PEOPLE)
         # Give each generated puzzle a distinct, numbered name so the
         # section headers below don't all read identically.
         generated.puzzle.name = f"Generated puzzle {index}"
@@ -670,6 +678,38 @@ def run_generated_whodunit_puzzles() -> None:
         )
 
         run_deduction_pipeline(generated.puzzle, description)
+
+
+def run_generated_n_person_puzzle() -> None:
+    """Generate one is_knight-only puzzle with more than 2 people and solve it.
+
+    Step 7's generate_puzzle() was fixed to exactly two people. Step 9
+    generalizes it to take any `people` list (see SPEC_step9.md,
+    including the calibration confirming acceptance rate stays roughly
+    stable as people are added), and this demonstrates that
+    generalization with a single puzzle at STEP_9_DEMO_PEOPLE_COUNT
+    people - meaningfully bigger than anything generated in Step 7 or
+    Step 8, both of which stay at 2. As with every other generated
+    puzzle in this project, the attempt count is printed so it can be
+    compared against SPEC_step9.md's calibration table, and the puzzle
+    is run through the exact same unmodified Steps 3-6 pipeline as
+    every hand-written and generated puzzle before it.
+    """
+    print_header("GENERATED N-PERSON PUZZLE")
+    print()
+
+    people = NAME_POOL[:STEP_9_DEMO_PEOPLE_COUNT]
+    generated = generate_puzzle(people)
+    generated.puzzle.name = f"Generated {STEP_9_DEMO_PEOPLE_COUNT}-person puzzle"
+
+    description = (
+        f"Found after {generated.attempts} attempt(s) - a candidate "
+        "puzzle is discarded and a new one generated unless it has "
+        "exactly one valid solution.\n\n"
+        f"{describe_generated_puzzle(generated.puzzle)}"
+    )
+
+    run_deduction_pipeline(generated.puzzle, description)
 
 
 def run_propagation_checks() -> None:
@@ -813,6 +853,11 @@ def main() -> None:
     # Step 8: generate whodunit puzzles (both attributes, plus a guilt
     # constraint) and confirm the same pipeline solves those too.
     run_generated_whodunit_puzzles()
+
+    # Step 9: generate an is_knight-only puzzle with more than 2 people,
+    # confirming generate_puzzle()'s generalization to N people and that
+    # the same unmodified pipeline still solves it.
+    run_generated_n_person_puzzle()
 
 
 if __name__ == "__main__":
