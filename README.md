@@ -30,7 +30,9 @@ brute-force solution in plain language, then runs a small set of standalone
 checks on the propagation function (including natural-language renderings of
 a few of them), and finally runs the full deduction pipeline against each
 puzzle - printing a natural-language explanation for every resolved value,
-regardless of which of the three techniques actually resolved it.
+regardless of which of the three techniques actually resolved it, and a
+structural `Difficulty:` rating for the puzzle as a whole, ending with a
+summary tallying every puzzle's difficulty across the whole run.
 
 ## Scope
 
@@ -124,6 +126,47 @@ written to skip them safely, but neither hand-written puzzle's trace
 had ever exercised that path, so an explicit check now covers it
 directly (see `run_propagation_checks()` in `main.py`).
 
+Step 11 adds a structural difficulty classification (`classify_difficulty()`
+in `solver.py`) on top of every puzzle the program already runs - not a
+message-based rating like Glicko-2, which would need real user play data
+this project doesn't have, but a rating grounded purely in which of the
+three deduction techniques a puzzle's own resolution actually needed:
+`EASY` if the Step 3 tactic alone resolved everything, `MEDIUM` if
+propagation was also needed but the case-split fallback never was, and
+`HARD` if case-split was needed for at least one value, which overrides
+the other two tiers regardless of how much the tactic or propagation
+contributed first. Every puzzle's output now prints its own
+`Difficulty:` line, and the program ends with a summary tallying every
+tier across everything it ran, plus explicit PASS/WARNING checks against
+three specific expectations from SPEC_step11.md.
+
+Puzzle 1 and Puzzle 2, both hand-written and deterministic, reliably
+classify as `HARD` on every run - both were already known to need
+case-split, back in Step 4. The generated puzzles are not deterministic:
+none of the generators fix a random seed, so the *specific* instance
+produced for a given demo (e.g. Step 9's 4-person puzzle) varies from
+run to run, and its difficulty can vary right along with it.
+SPEC_step11.md expected Step 9's demo to classify as `EASY`, based on an
+earlier observed run; a run performed while validating this step instead
+produced a 4-person instance where propagation genuinely forced one
+additional fact after the tactic resolved the rest - a real `MEDIUM`,
+not a classifier bug, and the end-of-program summary's expectation check
+flagged it with a `WARNING` rather than silently claiming a match that
+wasn't there. That WARNING is expected to appear on some runs, not only
+that one - it is exactly the "flag it rather than silently accepting a
+number that doesn't match" honesty SPEC_step11.md asks for, applied to a
+generator that was never seeded to be reproducible in the first place.
+
+`MEDIUM` overall is not necessarily rare either: that same validation
+run saw it 3 times out of 12 puzzles - a whodunit puzzle propagating
+straight from its global constraint, the Step 9 puzzle above, and a
+rich-grammar puzzle propagating through an `Implies` - genuine cases
+where propagation contributed once puzzles started drawing from a
+richer statement pool than the two original hand-written puzzles. On a
+different run, with different randomly generated puzzles, that count
+could just as easily come out at 0; the summary reports whatever
+actually happened for that run rather than assuming either outcome.
+
 ## Known quirks
 
 The random statement/constraint generator can occasionally produce a
@@ -148,5 +191,9 @@ Not included yet (planned for later steps):
 - Generated `is_knight`-only puzzles with more than five people (not
   calibrated)
 - Generated whodunit puzzles with more than two people (see Step 9 above)
-- Difficulty rating or deduplication for generated puzzles
+- Deduplication for generated puzzles (difficulty rating was added in
+  Step 11)
+- Sub-tiers within `HARD`, or any calibration of the difficulty
+  classification against real user performance (see SPEC_step11.md for
+  why that's explicitly out of scope)
 - Any interface beyond terminal output
