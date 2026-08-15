@@ -7,7 +7,12 @@ results in plain language.
 """
 
 from expressions import And, Expr, Iff, Implies, IsKnave, IsKnight, Not, Or
-from generator import describe_generated_puzzle, generate_puzzle
+from generator import (
+    describe_generated_puzzle,
+    describe_generated_whodunit_puzzle,
+    generate_puzzle,
+    generate_whodunit_puzzle,
+)
 from puzzles import (
     PUZZLE_1,
     PUZZLE_1_DESCRIPTION,
@@ -36,6 +41,10 @@ MAX_PIPELINE_ROUNDS = 10
 # How many freshly generated puzzles to run the full pipeline on, per
 # SPEC_step7.md's output requirements.
 NUM_GENERATED_PUZZLES = 3
+
+# How many freshly generated whodunit puzzles to run the full pipeline
+# on, per SPEC_step8.md's output requirements.
+NUM_GENERATED_WHODUNIT_PUZZLES = 3
 
 # Step 1's original printed numbers for this exact puzzle. Puzzle 1 in
 # this step is meant to reproduce them exactly using the new AST-based
@@ -624,6 +633,45 @@ def run_generated_puzzles() -> None:
         run_deduction_pipeline(generated.puzzle, description)
 
 
+def run_generated_whodunit_puzzles() -> None:
+    """Generate NUM_GENERATED_WHODUNIT_PUZZLES whodunit puzzles and solve each one.
+
+    Step 8's whole point (see SPEC_step8.md) is the same kind of
+    confirmation as Step 7's run_generated_puzzles(), but for the richer
+    whodunit shape: both is_knight and is_guilty attributes, statements
+    that can reference either, and a randomly generated guilt
+    constraint - exactly Puzzle 1's structure, but generated rather than
+    hand-written. generate_whodunit_puzzle() only guarantees a unique
+    solution via the Step 2 brute-force solver; calling
+    run_deduction_pipeline() unmodified on its output, and getting a
+    full resolution back, confirms the tactic/propagation/case-split
+    pipeline handles this richer shape too, with no puzzle-specific
+    code.
+
+    For each generated puzzle, this prepends how many attempts it took
+    onto the usual plain-language description (built with
+    describe_generated_whodunit_puzzle() so the constraint is included),
+    exactly as run_generated_puzzles() does for Step 7's puzzles.
+    """
+    print_header("GENERATED WHODUNIT PUZZLES")
+    print()
+
+    for index in range(1, NUM_GENERATED_WHODUNIT_PUZZLES + 1):
+        generated = generate_whodunit_puzzle()
+        # Give each generated puzzle a distinct, numbered name so the
+        # section headers below don't all read identically.
+        generated.puzzle.name = f"Generated whodunit puzzle {index}"
+
+        description = (
+            f"Found after {generated.attempts} attempt(s) - a candidate "
+            "puzzle is discarded and a new one generated unless it has "
+            "exactly one valid solution.\n\n"
+            f"{describe_generated_whodunit_puzzle(generated.puzzle)}"
+        )
+
+        run_deduction_pipeline(generated.puzzle, description)
+
+
 def run_propagation_checks() -> None:
     """Run small, hand-constructed checks that exercise propagate() directly.
 
@@ -761,6 +809,10 @@ def main() -> None:
     # Step 7: generate new puzzles (not hand-written) and confirm the
     # same pipeline solves them too, with no puzzle-specific code.
     run_generated_puzzles()
+
+    # Step 8: generate whodunit puzzles (both attributes, plus a guilt
+    # constraint) and confirm the same pipeline solves those too.
+    run_generated_whodunit_puzzles()
 
 
 if __name__ == "__main__":

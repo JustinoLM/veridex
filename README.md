@@ -34,7 +34,7 @@ regardless of which of the three techniques actually resolved it.
 
 ## Scope
 
-This is the seventh step of a larger project. The solver still brute-forces
+This is the eighth step of a larger project. The solver still brute-forces
 every puzzle as in Step 2. Step 3 added a three-valued evaluator (True /
 False / Unknown) and one deduction tactic on top of it - hypothesize each
 person's knight/knave status and check whether either hypothesis leads to a
@@ -78,6 +78,15 @@ unmodified - confirming that pipeline was always genuinely generic, rather
 than something that happened to work only because it was tuned against
 Puzzle 1 and Puzzle 2's specific shape.
 
+Step 8 extends the generator to a second mode: whodunit puzzles, matching
+Puzzle 1's shape. Both people get `is_knight` and `is_guilty` attributes,
+their statements can mix claims about either one, and a randomly generated
+global constraint over guilt (also And/Or/Iff-built) is added on top.
+Uniqueness is still checked the same way, via the Step 2 brute-force
+solver, and the full Step 3-6 pipeline runs against each generated
+whodunit puzzle completely unmodified, same as Step 7's puzzles. Step 7's
+is_knight-only generator is unchanged and still runs alongside it.
+
 Not included yet (planned for later steps):
 
 - Backward propagation for "exactly N" / "at least N" / "at most N"
@@ -85,8 +94,7 @@ Not included yet (planned for later steps):
 - Smarter case-split ordering/heuristics
 - A unified "explain the whole puzzle as one flowing narrative" mode,
   rather than one explanation per resolved value printed in sequence
-- A guilt axis, global constraints, or a richer statement grammar
-  (`Implies`, counting nodes) in generated puzzles
+- `Implies` or counting nodes in generated statements/constraints
 - Generated puzzles with more than two people
 - Difficulty rating or deduplication for generated puzzles
 - Any interface beyond terminal output
