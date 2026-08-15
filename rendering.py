@@ -167,6 +167,54 @@ def render_propagation_step(step: PropagationStep) -> str:
     )
 
 
+def _describe_unknown(key: tuple[str, str]) -> str:
+    """Turn one (person, attribute) key into a plain-language "whether ..." phrase.
+
+    The mirror image of _describe_fact(): that function names a value
+    once it's known ("Bo is a knight"), this one names a value while it's
+    still unknown ("whether Bo is a knight"). Used by render_case_split()
+    to list what case-split still had to figure out.
+
+    Args:
+        key: A (person, attribute) pair, e.g. ("bo", "is_knight").
+
+    Returns:
+        A short "whether ..." phrase naming the still-unknown value.
+    """
+    person, attribute = key
+    name = person.capitalize()
+    if attribute == "is_knight":
+        return f"whether {name} is a knight"
+    if attribute == "is_guilty":
+        return f"whether {name} is guilty"
+    return f"whether {name}'s {attribute} is true"
+
+
+def _join_naturally(items: list[str]) -> str:
+    """Join phrases the way an ordinary sentence would, not with a bare separator.
+
+    Produces "A", "A and B", or "A, B, and C" - comma-and-"and" list
+    phrasing - instead of the "; "/", "-joined internals-log style
+    render_case_split() used before Step 14's wording pass. Used for
+    every list of phrases in that function's explanation.
+
+    Args:
+        items: The phrases to join, already in the order they should
+            read (no reordering happens here).
+
+    Returns:
+        The phrases joined into one natural-language list. Empty string
+        if `items` is empty.
+    """
+    if not items:
+        return ""
+    if len(items) == 1:
+        return items[0]
+    if len(items) == 2:
+        return f"{items[0]} and {items[1]}"
+    return ", ".join(items[:-1]) + f", and {items[-1]}"
+
+
 def render_case_split(result: CaseSplitResult) -> list[str]:
     """Turn one CaseSplitResult into a short sequence of natural-language lines.
 
@@ -179,6 +227,13 @@ def render_case_split(result: CaseSplitResult) -> list[str]:
     plain language, (3) a per-person confirmation that each statement's
     truth value matches its speaker's resolved type, and (4) one concrete
     rejected combination as a counterexample.
+
+    Step 14 rewrote the phrasing of all four elements to read like
+    something written for a player, not an internals log (e.g. "3
+    value(s) were still unknown (Bo.is_knight)" became "1 thing was
+    still unknown: whether Bo is a knight"). The four elements, the
+    CaseSplitResult fields each line is built from, and the underlying
+    case-split logic are unchanged - this is a phrasing pass only.
 
     This returns one line per element (with the per-person consistency
     checks broken out further, one line each) rather than a single dense
@@ -203,22 +258,25 @@ def render_case_split(result: CaseSplitResult) -> list[str]:
     lines = []
 
     # Element 1: honest framing. Exhaustive checking is the whole point
-    # here, so the line says exactly that instead of implying insight.
-    unknown_names = ", ".join(
-        f"{person.capitalize()}.{attribute}" for person, attribute in result.remaining_unknowns
-    )
+    # here, so the line says exactly that instead of implying insight -
+    # phrased as a sentence naming each still-unknown value by what it
+    # actually means, rather than a "(Bo.is_knight)" key dump.
+    unknown_count = len(result.remaining_unknowns)
+    unknown_phrases = [_describe_unknown(key) for key in result.remaining_unknowns]
     lines.append(
-        f"{len(result.remaining_unknowns)} value(s) were still unknown ({unknown_names}); "
-        f"every one of the {result.total_combinations} possible combinations was checked "
-        "systematically rather than deduced directly."
+        f"{unknown_count} thing{'' if unknown_count == 1 else 's'} "
+        f"{'was' if unknown_count == 1 else 'were'} still unknown: "
+        f"{_join_naturally(unknown_phrases)}. Rather than being able to deduce the "
+        f"answer directly, all {result.total_combinations} possible combinations "
+        "were tried until the one that fit was found."
     )
 
     # Element 2: the winning combination, in the same "knight/knave,
     # guilty/innocent" phrasing used everywhere else in this project.
-    winning_facts = "; ".join(
+    winning_facts = [
         _describe_fact(key, result.winning_combination[key]) for key in result.remaining_unknowns
-    )
-    lines.append(f"Winning combination: {winning_facts}.")
+    ]
+    lines.append(f"The combination that fit: {_join_naturally(winning_facts)}.")
 
     # Element 3: per-person consistency - each statement's truth value
     # matches its speaker's resolved type, confirmed using the truth
@@ -227,29 +285,29 @@ def render_case_split(result: CaseSplitResult) -> list[str]:
     # person, instead of one run-on clause, so each person's check is
     # easy to scan independently.
     if result.statement_truth_by_person:
-        lines.append("Consistency check:")
+        lines.append("That combination holds up against everyone's statement:")
         for person, statement_truth in result.statement_truth_by_person.items():
             is_knight = result.winning_combination[(person, "is_knight")]
             role = "knight" if is_knight else "knave"
             truth_word = "true" if statement_truth else "false"
+            name = person.capitalize()
             lines.append(
-                f"    {person.capitalize()}'s statement evaluates to {truth_word}, "
-                f"matching {person.capitalize()} being a {role}."
+                f"    {name}'s statement turns out to be {truth_word} — which fits, "
+                f"since {name} is a {role}."
             )
 
     # Element 4: one concrete counterexample, naming the specific
     # combination tried and exactly which check it violated.
     rejected = result.example_rejected
     if rejected is not None:
-        rejected_facts = "; ".join(
-            _describe_fact(key, value) for key, value in rejected.values.items()
-        )
+        rejected_facts = [_describe_fact(key, value) for key, value in rejected.values.items()]
         expected_word = "true" if rejected.expected_value else "false"
         actual_word = "true" if rejected.actual_value else "false"
         lines.append(
-            f"Counterexample: the combination where {rejected_facts} was rejected - it "
-            f"required {rejected.failed_check} to be {expected_word}, but it actually "
-            f"evaluated to {actual_word}."
+            f"Not every combination works, though - for example, the one where "
+            f"{_join_naturally(rejected_facts)} was ruled out: it needed "
+            f"{rejected.failed_check} to come out {expected_word}, but that actually "
+            f"came out {actual_word}."
         )
 
     return lines

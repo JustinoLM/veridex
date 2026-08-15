@@ -4,4 +4,6 @@ version = "0.1.0"
 description = "Brute-force solver for Knights & Knaves logic puzzles"
 readme = "README.md"
 requires-python = ">=3.11"
-dependencies = []
+dependencies = [
+    "rich>=15.0.0",
+]
