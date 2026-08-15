@@ -6,7 +6,7 @@ the only thing that knows how to run the pair of them and narrate the
 results in plain language.
 """
 
-from expressions import And, Expr, Iff, Implies, IsKnave, IsKnight, Not, Or
+from expressions import And, AtLeastN, Expr, Iff, Implies, IsKnave, IsKnight, Not, Or
 from generator import (
     GENERATED_PEOPLE,
     NAME_POOL,
@@ -53,6 +53,13 @@ NUM_GENERATED_WHODUNIT_PUZZLES = 3
 # Step 7 or Step 8 (which both stay at 2), small enough that 2**4 = 16
 # brute-force candidates keeps verification instant (see SPEC_step9.md).
 STEP_9_DEMO_PEOPLE_COUNT = 4
+
+# How many freshly generated rich-grammar puzzles (Implies and counting
+# nodes) to run the full pipeline on, and how many people each one uses
+# - three people gives a good chance of hitting both a generated Implies
+# and a counting node across the set, per SPEC_step10.md.
+NUM_STEP_10_PUZZLES = 3
+STEP_10_DEMO_PEOPLE_COUNT = 3
 
 # Step 1's original printed numbers for this exact puzzle. Puzzle 1 in
 # this step is meant to reproduce them exactly using the new AST-based
@@ -712,6 +719,44 @@ def run_generated_n_person_puzzle() -> None:
     run_deduction_pipeline(generated.puzzle, description)
 
 
+def run_generated_rich_grammar_puzzles() -> None:
+    """Generate NUM_STEP_10_PUZZLES rich-grammar is_knight-only puzzles and solve each one.
+
+    Step 10 (see SPEC_step10.md) extends random_statement()'s grammar,
+    for the is_knight-only generator only, to include Implies and
+    counting nodes (ExactlyN/AtLeastN/AtMostN) alongside And/Or/Iff -
+    the connectives this whole project was originally motivated by (the
+    vacuous-truth-of-implication gap, and Puzzle 2's "exactly N knaves"
+    style reasoning). generate_puzzle() takes an allow_rich_grammar flag
+    (default False, so the Step 7 and Step 9 demonstration puzzles keep
+    their exact prior behavior); this is the one caller that passes
+    True. Calling it here at STEP_10_DEMO_PEOPLE_COUNT people - chosen
+    for a good chance of hitting both a generated Implies and a counting
+    node across the set, per SPEC_step10.md's calibration - and running
+    the same unmodified Steps 3-6 pipeline on the result confirms that
+    pipeline handles the richer grammar too, with no puzzle-specific
+    code, same as every other generated puzzle in this project.
+    """
+    print_header("GENERATED PUZZLES (RICH GRAMMAR: IMPLIES & COUNTING NODES)")
+    print()
+
+    people = NAME_POOL[:STEP_10_DEMO_PEOPLE_COUNT]
+    for index in range(1, NUM_STEP_10_PUZZLES + 1):
+        generated = generate_puzzle(people, allow_rich_grammar=True)
+        # Give each generated puzzle a distinct, numbered name so the
+        # section headers below don't all read identically.
+        generated.puzzle.name = f"Generated rich-grammar puzzle {index}"
+
+        description = (
+            f"Found after {generated.attempts} attempt(s) - a candidate "
+            "puzzle is discarded and a new one generated unless it has "
+            "exactly one valid solution.\n\n"
+            f"{describe_generated_puzzle(generated.puzzle)}"
+        )
+
+        run_deduction_pipeline(generated.puzzle, description)
+
+
 def run_propagation_checks() -> None:
     """Run small, hand-constructed checks that exercise propagate() directly.
 
@@ -805,6 +850,33 @@ def run_propagation_checks() -> None:
     )
     rendered_examples.extend(render_propagation_step(step) for step in steps)
 
+    # Step 10 robustness check (see SPEC_step10.md): Implies with a
+    # counting-node antecedent, required True, with a known-False
+    # consequent. propagate() can only satisfy that by forcing the
+    # antecedent False - which means calling propagate() directly on the
+    # AtLeastN node, a node type it does not know how to propagate
+    # through (see the ExactlyN/AtLeastN/AtMostN case in solver.py).
+    # This confirms that reaching one this way completes without raising
+    # and without inventing any facts about the people (x, y, z) inside
+    # it - only w was already known, and facts should stay empty.
+    facts = {}
+    steps = []
+    propagate(
+        Implies(AtLeastN(2, [IsKnave("x"), IsKnave("y"), IsKnave("z")]), IsKnight("w")),
+        True,
+        {("w", "is_knight"): False},
+        facts,
+        steps=steps,
+    )
+    checks.append(
+        (
+            "Implies with a counting-node antecedent, required True with a known-False "
+            "consequent, completes without crashing and forces no incorrect facts about "
+            "the people inside the counting node",
+            facts == {},
+        )
+    )
+
     all_passed = True
     for check_description, passed in checks:
         print(f"  [{'PASS' if passed else 'FAIL'}] {check_description}")
@@ -858,6 +930,11 @@ def main() -> None:
     # confirming generate_puzzle()'s generalization to N people and that
     # the same unmodified pipeline still solves it.
     run_generated_n_person_puzzle()
+
+    # Step 10: generate is_knight-only puzzles using the richer grammar
+    # (Implies and counting nodes), confirming the same unmodified
+    # pipeline handles them too.
+    run_generated_rich_grammar_puzzles()
 
 
 if __name__ == "__main__":

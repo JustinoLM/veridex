@@ -25,13 +25,34 @@ number of people, so the only real change needed was generate_puzzle()
 taking `people` as a parameter instead of hardcoding it internally. The
 whodunit generator stays fixed at exactly two people; see
 SPEC_step9.md's "Why whodunit stays at 2 people" for the calibration
-finding behind that decision.
+finding behind that decision. Step 10 (see SPEC_step10.md) extends
+random_statement()'s grammar further, but only for the is_knight-only
+path: a new `allow_rich_grammar` flag (default False, so the whodunit
+generator and random_constraint() are unaffected) lets it also produce
+Implies connectives and ExactlyN/AtLeastN/AtMostN counting nodes.
+generate_puzzle() takes the same flag and passes it straight through,
+also defaulting to False so the Step 7 and Step 9 demonstration
+puzzles keep their exact pre-Step-10 behavior; only the new Step 10
+demonstration puzzles pass True.
 """
 
 import random
 from dataclasses import dataclass
 
-from expressions import And, Expr, Iff, IsGuilty, IsInnocent, IsKnave, IsKnight, Or
+from expressions import (
+    And,
+    AtLeastN,
+    AtMostN,
+    Expr,
+    ExactlyN,
+    Iff,
+    Implies,
+    IsGuilty,
+    IsInnocent,
+    IsKnave,
+    IsKnight,
+    Or,
+)
 from puzzles import Puzzle
 from solver import solve
 
@@ -70,6 +91,24 @@ LEAF_PROBABILITY = 0.3
 # way here: connective(left_subexpr, right_subexpr).
 _CONNECTIVES = (And, Or, Iff)
 
+# The connectives available when allow_rich_grammar is enabled: the
+# original three plus Implies, whose dataclass-generated __init__ also
+# takes exactly two positional arguments (antecedent, consequent), so it
+# fits the same connective(left_subexpr, right_subexpr) construction
+# pattern as the other three. See SPEC_step10.md.
+_RICH_CONNECTIVES = (And, Or, Iff, Implies)
+
+# Probability of producing a counting node (ExactlyN/AtLeastN/AtMostN)
+# instead of a connective at a non-leaf branch point, when
+# allow_rich_grammar is enabled. Kept modest (per SPEC_step10.md) so
+# counting nodes appear regularly without dominating every generated
+# statement.
+COUNTING_NODE_PROBABILITY = 0.15
+
+# The three counting node types _random_counting_node() picks from
+# uniformly at random.
+_COUNTING_NODE_TYPES = (ExactlyN, AtLeastN, AtMostN)
+
 # The two possible leaf node types for each attribute a generated leaf
 # can talk about. Step 7 only ever used the is_knight row; Step 8 adds
 # the is_guilty row so whodunit puzzles can generate leaves about guilt
@@ -80,14 +119,24 @@ _LEAF_TYPES_BY_ATTR = {
 }
 
 
-def random_statement(people: list[str], max_depth: int, allowed_attrs: list[str]) -> Expr:
+def random_statement(
+    people: list[str],
+    max_depth: int,
+    allowed_attrs: list[str],
+    allow_rich_grammar: bool = False,
+) -> Expr:
     """Generate one random statement (Expr tree) over the given people.
 
     This is a straightforward recursive random tree builder: at depth 0
     (or, with probability LEAF_PROBABILITY, at any depth) it stops and
     produces a leaf - a direct claim about one of `allowed_attrs` for
-    some person. Otherwise it picks one of And/Or/Iff and recurses into
-    two fresh sub-statements, each one depth shallower.
+    some person. Otherwise it picks a connective (And/Or/Iff, plus
+    Implies when allow_rich_grammar is True - see SPEC_step10.md) and
+    recurses into two fresh sub-statements, each one depth shallower -
+    except that, when allow_rich_grammar is True, a non-leaf branch point
+    has a COUNTING_NODE_PROBABILITY chance of instead producing a
+    counting node (ExactlyN/AtLeastN/AtMostN) via
+    _random_counting_node(), which is terminal rather than recursive.
 
     The two recursive calls are independent: each one separately decides
     whether to stop early, which attribute to talk about, and which
@@ -104,10 +153,19 @@ def random_statement(people: list[str], max_depth: int, allowed_attrs: list[str]
             both) a leaf is allowed to make a claim about. Step 7's
             puzzles pass ["is_knight"] only, to keep that generator's
             calibrated behavior unchanged; whodunit puzzles pass both.
+        allow_rich_grammar: Whether Implies connectives and counting
+            nodes may be produced, on top of the original
+            And/Or/Iff-over-leaves grammar. Defaults to False so
+            existing callers (random_constraint(), and
+            generate_whodunit_puzzle() via _WHODUNIT_ATTRS) are
+            unaffected - per SPEC_step10.md, this only applies to the
+            is_knight-only generator, which passes True explicitly.
 
     Returns:
-        A randomly generated Expr tree, built entirely out of leaves
-        over `allowed_attrs` and And/Or/Iff connectives.
+        A randomly generated Expr tree, built out of leaves over
+        `allowed_attrs`, And/Or/Iff connectives, and - when
+        allow_rich_grammar is True - Implies connectives and counting
+        nodes as well.
     """
     at_leaf = max_depth <= 0 or random.random() < LEAF_PROBABILITY
     if at_leaf:
@@ -116,10 +174,42 @@ def random_statement(people: list[str], max_depth: int, allowed_attrs: list[str]
         leaf_type = random.choice(_LEAF_TYPES_BY_ATTR[attr])
         return leaf_type(person)
 
-    connective = random.choice(_CONNECTIVES)
-    left = random_statement(people, max_depth - 1, allowed_attrs)
-    right = random_statement(people, max_depth - 1, allowed_attrs)
+    if allow_rich_grammar and random.random() < COUNTING_NODE_PROBABILITY:
+        return _random_counting_node(people)
+
+    connectives = _RICH_CONNECTIVES if allow_rich_grammar else _CONNECTIVES
+    connective = random.choice(connectives)
+    left = random_statement(people, max_depth - 1, allowed_attrs, allow_rich_grammar)
+    right = random_statement(people, max_depth - 1, allowed_attrs, allow_rich_grammar)
     return connective(left, right)
+
+
+def _random_counting_node(people: list[str]) -> Expr:
+    """Generate one random counting node (ExactlyN/AtLeastN/AtMostN) over IsKnave leaves.
+
+    Mirrors how Puzzle 2's hand-written statements use counting nodes:
+    wrapping a plain list of IsKnave(person) terms, not arbitrarily
+    nested sub-expressions - this is a terminal production, not a
+    recursive one (see SPEC_step10.md's grammar extension). The subset
+    of people it talks about, which of the three counting node types is
+    used, and the threshold are all chosen independently at random.
+
+    Args:
+        people: The full list of people in the puzzle. The counting
+            node's subset is drawn from this list, sized between 2 and
+            len(people) - "2 to N people", where N is the puzzle's total
+            people count, per SPEC_step10.md.
+
+    Returns:
+        A randomly generated ExactlyN, AtLeastN, or AtMostN node,
+        wrapping IsKnave terms for a random subset of `people`.
+    """
+    subset_size = random.randint(2, len(people))
+    subset = random.sample(people, subset_size)
+    exprs = [IsKnave(person) for person in subset]
+    node_type = random.choice(_COUNTING_NODE_TYPES)
+    n = random.randint(0, subset_size)
+    return node_type(n, exprs)
 
 
 def random_constraint(people: list[str], max_depth: int = DEFAULT_MAX_DEPTH) -> Expr:
@@ -160,7 +250,10 @@ class GeneratedPuzzle:
 
 
 def generate_puzzle(
-    people: list[str], max_attempts: int = 100, max_depth: int = DEFAULT_MAX_DEPTH
+    people: list[str],
+    max_attempts: int = 100,
+    max_depth: int = DEFAULT_MAX_DEPTH,
+    allow_rich_grammar: bool = False,
 ) -> GeneratedPuzzle:
     """Generate random is_knight-only puzzles until one has exactly one valid solution.
 
@@ -173,14 +266,18 @@ def generate_puzzle(
     actually needed to unblock larger puzzles.
 
     Each attempt builds a brand new random statement (via
-    random_statement()) for every person, assembles them into a Puzzle
+    random_statement(), passing `allow_rich_grammar` straight through -
+    see SPEC_step10.md) for every person, assembles them into a Puzzle
     with no constraints, and runs it through the existing generic
     brute-force solver from Step 2 to see how many assignments are fully
     valid. Most random statements do not produce a well-posed puzzle -
     per SPEC_step7.md's calibration, roughly two out of three attempts
     have zero or multiple valid assignments - so this simply discards
     those and tries again, rather than trying to construct a unique
-    puzzle directly.
+    puzzle directly. SPEC_step10.md's calibration confirms the richer
+    grammar (Implies and counting nodes) does not make this any worse -
+    if anything, slightly better, since a vacuously-true Implies doesn't
+    hurt uniqueness.
 
     Args:
         people: The names of the people this puzzle should have. Every
@@ -196,6 +293,14 @@ def generate_puzzle(
             people count this has actually been calibrated at.
         max_depth: The max_depth passed through to random_statement()
             for every person's statement.
+        allow_rich_grammar: Whether to build statements with the Step 10
+            richer grammar (Implies and counting nodes) instead of the
+            original And/Or/Iff-only grammar. Defaults to False so
+            existing callers - the Step 7 two-person demo and the Step
+            9 N-person demo (see SPEC_step10.md's "Definition of done":
+            Step 7-9 output must remain unchanged) - keep their exact
+            pre-Step-10 behavior. The Step 10 demo is the only caller
+            that passes True.
 
     Returns:
         A GeneratedPuzzle wrapping the first well-posed puzzle found and
@@ -211,7 +316,12 @@ def generate_puzzle(
     """
     for attempt in range(1, max_attempts + 1):
         statements = {
-            person: random_statement(people, max_depth, allowed_attrs=["is_knight"])
+            person: random_statement(
+                people,
+                max_depth,
+                allowed_attrs=["is_knight"],
+                allow_rich_grammar=allow_rich_grammar,
+            )
             for person in people
         }
         candidate = Puzzle(
@@ -316,9 +426,12 @@ def render_statement(expr: Expr, speaker: str | None) -> str:
     descriptions.
 
     Only the node types random_statement() can actually produce
-    (IsKnight, IsKnave, IsGuilty, IsInnocent, And, Or, Iff) are handled -
-    this is not a general-purpose renderer for every node type in
-    expressions.py.
+    (IsKnight, IsKnave, IsGuilty, IsInnocent, And, Or, Iff, and - when
+    allow_rich_grammar was used, see SPEC_step10.md - Implies and the
+    counting nodes) are handled - this is not a general-purpose renderer
+    for every node type in expressions.py. In particular, the counting
+    node cases assume every sub-expression they wrap is an IsKnave node,
+    since that is the only shape _random_counting_node() ever produces.
 
     Args:
         expr: The statement (or sub-statement) to render.
@@ -352,8 +465,41 @@ def render_statement(expr: Expr, speaker: str | None) -> str:
             left_text = render_statement(left, speaker)
             right_text = render_statement(right, speaker)
             return f"({left_text}) if and only if ({right_text})"
+        case Implies(antecedent, consequent):
+            antecedent_text = render_statement(antecedent, speaker)
+            consequent_text = render_statement(consequent, speaker)
+            return f"if {antecedent_text}, then {consequent_text}"
+        case ExactlyN(n, exprs):
+            return f"exactly {_render_knave_count(n, exprs)}"
+        case AtLeastN(n, exprs):
+            return f"at least {_render_knave_count(n, exprs)}"
+        case AtMostN(n, exprs):
+            return f"at most {_render_knave_count(n, exprs)}"
         case _:
             raise TypeError(f"render_statement() cannot render node: {expr!r}")
+
+
+def _render_knave_count(n: int, exprs: list[Expr]) -> str:
+    """Render a counting node's "N of <people> are knaves" core phrase.
+
+    Shared by the ExactlyN/AtLeastN/AtMostN cases in render_statement(),
+    which differ only in which qualifier ("exactly", "at least", "at
+    most") gets prepended to this phrase. Assumes every entry in `exprs`
+    is an IsKnave node - the only shape _random_counting_node() ever
+    produces (see SPEC_step10.md) - so it reads `.person` directly off
+    each one rather than recursing through render_statement().
+
+    Args:
+        n: The threshold count.
+        exprs: The IsKnave(person) terms the counting node wraps.
+
+    Returns:
+        A phrase like "2 of Ada, Bo, and Cal are knaves" or "1 of Ada
+        and Bo is a knave".
+    """
+    names = _join_people([expr.person for expr in exprs])
+    verb = "is a knave" if n == 1 else "are knaves"
+    return f"{n} of {names} {verb}"
 
 
 def render_constraint(expr: Expr) -> str:

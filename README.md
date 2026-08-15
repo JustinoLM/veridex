@@ -102,6 +102,28 @@ random constraint doesn't get proportionally more constraining as more
 people are added. That is left for a future step that can generate
 constraints more deliberately, not forced into this one.
 
+Step 10 extends the is_knight-only generator's grammar - and only that
+generator, not the whodunit one - to include `Implies` and counting
+nodes (`ExactlyN`/`AtLeastN`/`AtMostN`) alongside `And`/`Or`/`Iff`: the
+exact connectives this whole project was originally motivated by (the
+vacuous-truth-of-implication gap found in the competing app, and the
+"exactly N knaves" style reasoning from Puzzle 2). A counting node is
+generated as a terminal wrapping a random subset of people's `IsKnave`
+claims, matching how Puzzle 2's hand-written statements already use
+counting nodes, rather than nesting further sub-expressions inside one.
+Calibration by simulation found the richer grammar performs slightly
+better than the plain grammar, not worse - a vacuously-true `Implies`
+doesn't hurt uniqueness. The richer grammar is opt-in, via an
+`allow_rich_grammar` flag on `random_statement()` and `generate_puzzle()`
+that defaults to False: only the new Step 10 demonstration puzzles pass
+True, so the Step 7 and Step 9 demonstration puzzles keep generating
+with the original And/Or/Iff-only grammar, unchanged from before this
+step. This step also confirms `propagate()` (Step 4) never actually
+crashes when it reaches a counting node mid-traversal: it was always
+written to skip them safely, but neither hand-written puzzle's trace
+had ever exercised that path, so an explicit check now covers it
+directly (see `run_propagation_checks()` in `main.py`).
+
 ## Known quirks
 
 The random statement/constraint generator can occasionally produce a
@@ -120,7 +142,9 @@ Not included yet (planned for later steps):
 - Smarter case-split ordering/heuristics
 - A unified "explain the whole puzzle as one flowing narrative" mode,
   rather than one explanation per resolved value printed in sequence
-- `Implies` or counting nodes in generated statements/constraints
+- `Implies` or counting nodes in the whodunit generator's grammar or in
+  generated global constraints - only the `is_knight`-only generator's
+  per-person statements have them, as of Step 10
 - Generated `is_knight`-only puzzles with more than five people (not
   calibrated)
 - Generated whodunit puzzles with more than two people (see Step 9 above)

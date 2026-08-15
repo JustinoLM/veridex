@@ -585,7 +585,13 @@ def propagate(
             # neither puzzle needs propagation into a counting node's own
             # operands, and the case-split fallback below covers whatever
             # this leaves unresolved. Doing nothing here is correct, not
-            # a placeholder for a missing case.
+            # a placeholder for a missing case. Step 4's two hand-written
+            # puzzles never actually reached this branch mid-traversal -
+            # Step 10's richer generated grammar can, since a counting
+            # node can now be nested inside a resolved person's statement
+            # (e.g. under an Implies). An explicit check in
+            # run_propagation_checks() (see main.py) confirms this stays
+            # a safe no-op rather than a crash (see SPEC_step10.md).
             pass
 
         case _:
