@@ -87,6 +87,17 @@ solver, and the full Step 3-6 pipeline runs against each generated
 whodunit puzzle completely unmodified, same as Step 7's puzzles. Step 7's
 is_knight-only generator is unchanged and still runs alongside it.
 
+## Known quirks
+
+The random statement/constraint generator can occasionally produce a
+redundant sub-clause - the same leaf appearing twice under a nested
+And/Or - since at low depth there are only a handful of possible leaves
+to choose from (e.g. just 4 for a guilt-only constraint), and two
+independent recursive branches can land on the same one by chance. This
+does not affect correctness: the solver evaluates the expression tree
+itself, not the rendered English text, so a repeated clause has no
+effect on the puzzle's solution.
+
 Not included yet (planned for later steps):
 
 - Backward propagation for "exactly N" / "at least N" / "at most N"
