@@ -7,3 +7,14 @@ requires-python = ">=3.11"
 dependencies = [
     "rich>=15.0.0",
 ]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# The project is a flat set of modules, so the repo root has to be on
+# sys.path for `import solver`, `import play`, etc. to work in tests.
+pythonpath = ["."]
