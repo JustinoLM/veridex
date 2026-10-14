@@ -1,6 +1,6 @@
 """Tests for play.py's input parsing and re-prompt loop (no terminal needed)."""
 
-import play
+from veridex import play
 
 
 def test_knight_or_knave_parsing_is_case_and_space_insensitive():

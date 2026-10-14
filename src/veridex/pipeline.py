@@ -1,17 +1,17 @@
 """The full deduction pipeline, split into computation and presentation.
 
-This used to live inside main.py's run_deduction_pipeline(), which solved
-and printed in one pass. That forced play.py to capture main.py's stdout
+This used to live inside demo.py's run_deduction_pipeline(), which solved
+and printed in one pass. That forced play.py to capture demo.py's stdout
 and re-parse the text to restyle it. Splitting the two halves removes
 that coupling: run_pipeline() produces a structured PipelineResult,
 format_pipeline() turns it into plain-text sections, and each caller
-(main.py's plain printing, play.py's rich panels) consumes the same
+(demo.py's plain printing, play.py's rich panels) consumes the same
 structured output directly.
 """
 
 from dataclasses import dataclass
 
-from deduction import (
+from .deduction import (
     CaseSplitResult,
     PropagationStep,
     TacticStep,
@@ -19,9 +19,9 @@ from deduction import (
     propagate_round,
     try_resolve_knight_status,
 )
-from difficulty import Difficulty, classify_difficulty
-from puzzles import Puzzle
-from rendering import (
+from .difficulty import Difficulty, classify_difficulty
+from .puzzles import Puzzle
+from .rendering import (
     describe_assignment,
     render_case_split,
     render_propagation_step,
@@ -86,7 +86,7 @@ class PipelineSections:
 def run_pipeline(puzzle: Puzzle) -> PipelineResult:
     """Run the tactic/propagation loop, then the case-split fallback.
 
-    Pure computation: nothing is printed. See main.py's
+    Pure computation: nothing is printed. See demo.py's
     run_deduction_pipeline() for the narrated version.
 
     Args:

@@ -4,11 +4,11 @@ import random
 
 import pytest
 
-from difficulty import Difficulty
-from generator import NAME_POOL, generate_puzzle, generate_whodunit_puzzle
-from pipeline import MAX_PIPELINE_ROUNDS, format_pipeline, run_pipeline
-from puzzles import PUZZLE_1, PUZZLE_2
-from solver import solve
+from veridex.difficulty import Difficulty
+from veridex.generator import NAME_POOL, generate_puzzle, generate_whodunit_puzzle
+from veridex.pipeline import MAX_PIPELINE_ROUNDS, format_pipeline, run_pipeline
+from veridex.puzzles import PUZZLE_1, PUZZLE_2
+from veridex.solver import solve
 
 
 @pytest.mark.parametrize("puzzle", [PUZZLE_1, PUZZLE_2])

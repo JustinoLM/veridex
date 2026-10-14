@@ -10,8 +10,8 @@ that can be expressed as a `Puzzle`.
 from dataclasses import dataclass
 from itertools import product
 
-from expressions import evaluate
-from puzzles import Puzzle
+from .expressions import evaluate
+from .puzzles import Puzzle
 
 
 @dataclass

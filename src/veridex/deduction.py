@@ -13,7 +13,7 @@ one fact at a time, the way a human solver would:
    above stop making progress, brute-force only whatever (person,
    attribute) values remain unknown, not the whole puzzle.
 
-main.py's run_deduction_pipeline() drives all three together, round by
+demo.py's run_deduction_pipeline() drives all three together, round by
 round, and difficulty.py's classify_difficulty() looks at which of them
 actually had to contribute to reach a full solution.
 """
@@ -21,7 +21,7 @@ actually had to contribute to reach a full solution.
 from dataclasses import dataclass
 from itertools import product
 
-from expressions import (
+from .expressions import (
     And,
     AtLeastN,
     AtMostN,
@@ -38,7 +38,7 @@ from expressions import (
     evaluate,
     evaluate_partial,
 )
-from puzzles import Puzzle
+from .puzzles import Puzzle
 
 
 # ---------------------------------------------------------------------------
@@ -197,7 +197,7 @@ def try_resolve_knight_status(puzzle: Puzzle, assignment: dict) -> list[TacticSt
 # truth value that is *already* pinned down (a constraint, or a resolved
 # person's statement) and asks what that forces about the pieces inside it.
 # The two techniques are complementary and are run together, round by
-# round, in propagate_round() below and in main.py's pipeline driver.
+# round, in propagate_round() below and in demo.py's pipeline driver.
 # ---------------------------------------------------------------------------
 
 

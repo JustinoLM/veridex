@@ -1,14 +1,47 @@
 # Veridex
 
+[![Tests](https://github.com/JustinoLM/veridex/actions/workflows/tests.yml/badge.svg)](https://github.com/JustinoLM/veridex/actions/workflows/tests.yml)
+![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)
+![uv](https://img.shields.io/badge/uv-package%20manager-DE5FE9?logo=uv&logoColor=white)
+![pytest](https://img.shields.io/badge/pytest-46%20tests-0A9EDC?logo=pytest&logoColor=white)
+![Rich](https://img.shields.io/badge/Rich-terminal%20UI-FAE042)
+![License](https://img.shields.io/badge/License-MIT-green)
+
 A Knights & Knaves logic-puzzle toolkit in Python: a brute-force solver, a
 human-style deduction engine that explains *how* it solves each puzzle, a
 random puzzle generator, and an interactive terminal game.
+
+<!-- TODO: record docs/images/demo.gif (see "Recording the demo" in the chat notes) -->
+<p align="center">
+  <img src="docs/images/demo.gif" width="720" alt="Playing a puzzle in the terminal and reading the step-by-step explanation">
+</p>
 
 In a Knights & Knaves puzzle, each person is either a knight (always tells
 the truth) or a knave (always lies). Given what each person says, work out
 who is which. Statements are expression trees (`expressions.py`), puzzles
 declare their people, attributes, statements and constraints as plain data
 (`puzzles.py`), and the solver contains no knowledge of any specific puzzle.
+
+## Example
+
+<!-- TODO: replace the explanation below with the exact, unedited output of `uv run veridex-demo` for Puzzle 2 -->
+
+```text
+Statements:
+  Ada says: "Cal is a knave, and Cal and Bo are the same type."
+  Bo says:  "If at least two of us are knaves, then all of us are knaves."
+  Cal says: "None of us are knaves, or exactly two of us are knaves."
+
+Tactic: The tactic made no progress on this puzzle.
+Backward propagation: Propagation made no additional progress on this puzzle.
+Case-split fallback:
+  [full case-split explanation here]
+Final solution: Ada is a knave. Bo is a knave. Cal is a knight.
+Difficulty: HARD
+```
+
+The engine reports which techniques it needed, and that is what sets the
+difficulty: this puzzle resists the first two, so it is rated `HARD`.
 
 ## Quick start
 
@@ -17,8 +50,10 @@ dependency is [`rich`](https://github.com/Textualize/rich), which `uv`
 installs on first run.
 
 ```sh
-uv run main.py   # solve and narrate every built-in and generated puzzle
-uv run play.py   # play the puzzles yourself, then see the full explanation
+git clone https://github.com/JustinoLM/veridex.git
+cd veridex
+uv run veridex-demo   # solve and narrate every built-in and generated puzzle
+uv run veridex-play   # play the puzzles yourself, then see the full explanation
 ```
 
 Run the test suite:
@@ -62,24 +97,26 @@ The code is a pipeline of small modules that pass structured data
 (dataclasses), never formatted text, between each other:
 
 ```
-expressions.py   expression AST (dataclasses) + full and three-valued evaluators
-puzzles.py       Puzzle dataclass (validated on construction) + built-in puzzles
-solver.py        brute-force solve() -> SolveResult
-deduction.py     tactic / propagation / case-split -> TacticStep, PropagationStep, CaseSplitResult
-difficulty.py    classify_difficulty() from those step records
-rendering.py     step records -> natural-language sentences
-pipeline.py      run_pipeline() -> PipelineResult;  format_pipeline() -> PipelineSections
-generator.py     random puzzle generation with uniqueness verification
-main.py          plain-text entry point (batch demo of everything)
-play.py          interactive entry point (rich panels and prompts)
-tests/           pytest suite
+src/veridex/
+  expressions.py   expression AST (dataclasses) + full and three-valued evaluators
+  puzzles.py       Puzzle dataclass (validated on construction) + built-in puzzles
+  solver.py        brute-force solve() -> SolveResult
+  deduction.py     tactic / propagation / case-split -> TacticStep, PropagationStep, CaseSplitResult
+  difficulty.py    classify_difficulty() from those step records
+  rendering.py     step records -> natural-language sentences
+  pipeline.py      run_pipeline() -> PipelineResult;  format_pipeline() -> PipelineSections
+  generator.py     random puzzle generation with uniqueness verification
+  demo.py          plain-text entry point (batch demo of everything)  ->  veridex-demo
+  play.py          interactive entry point (rich panels and prompts)  ->  veridex-play
+tests/             pytest suite
+docs/specs/        the per-step specs the project was built from
 ```
 
 Design decisions worth knowing about:
 
 - **Computation and presentation are separate.** `pipeline.run_pipeline()`
   returns data; `pipeline.format_pipeline()` turns it into text sections.
-  `main.py` prints those sections, `play.py` wraps each one in a colored
+  `demo.py` prints those sections, `play.py` wraps each one in a colored
   panel. Neither entry point parses the other's output.
 - **Fail early with clear errors.** `Puzzle` validates itself on
   construction: a statement that mentions someone outside `people`, or reads
@@ -101,9 +138,10 @@ Design decisions worth knowing about:
 counting nodes), three-valued short-circuiting, puzzle validation, the
 solver's known results for both built-in puzzles, the pipeline's agreement
 with brute force on seeded generated puzzles, the generator's uniqueness
-guarantee and failure mode, and `play.py`'s input handling. `main.py` also
+guarantee and failure mode, and `play.py`'s input handling. `demo.py` also
 keeps a runtime regression check that Puzzle 1 still produces its original
-numbers (16 candidates, 8 passing the constraint, 1 fully valid).
+numbers (16 candidates, 8 passing the constraint, 1 fully valid). CI runs
+the suite on every push and pull request.
 
 ## Development process
 
@@ -147,7 +185,16 @@ implemented yet.
 - The difficulty rating is not calibrated against real player data.
 - Terminal only: there is no GUI or web interface.
 
-A note on random output: on some runs `main.py` prints a `WARNING` next to
+A note on random output: on some runs `demo.py` prints a `WARNING` next to
 one of its end-of-run difficulty expectations (for example the 4-person demo
 landing on `MEDIUM` instead of `EASY`). That is intentional honesty about
 unseeded generation, not a bug in the classifier.
+
+## License
+
+[MIT](LICENSE)
+
+## Author
+
+**Justin Williams** — Software Engineering student, Universidad Tecnológica de Panamá
+[GitHub](https://github.com/JustinoLM) · [LinkedIn](https://www.linkedin.com/in/jugawike)

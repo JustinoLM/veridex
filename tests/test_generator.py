@@ -4,8 +4,8 @@ import random
 
 import pytest
 
-from generator import NAME_POOL, generate_puzzle, generate_whodunit_puzzle
-from solver import solve
+from veridex.generator import NAME_POOL, generate_puzzle, generate_whodunit_puzzle
+from veridex.solver import solve
 
 
 @pytest.mark.parametrize("seed", range(5))

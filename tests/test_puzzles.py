@@ -2,8 +2,8 @@
 
 import pytest
 
-from expressions import AtLeastN, IsGuilty, IsKnave, IsKnight
-from puzzles import PUZZLE_1, PUZZLE_2, Puzzle
+from veridex.expressions import AtLeastN, IsGuilty, IsKnave, IsKnight
+from veridex.puzzles import PUZZLE_1, PUZZLE_2, Puzzle
 
 
 def make(**overrides):

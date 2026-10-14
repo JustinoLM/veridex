@@ -6,8 +6,8 @@ the only thing that knows how to run the pair of them and narrate the
 results in plain language.
 """
 
-from difficulty import Difficulty
-from generator import (
+from .difficulty import Difficulty
+from .generator import (
     GENERATED_PEOPLE,
     NAME_POOL,
     describe_generated_puzzle,
@@ -15,20 +15,20 @@ from generator import (
     generate_puzzle,
     generate_whodunit_puzzle,
 )
-from puzzles import (
+from .puzzles import (
     PUZZLE_1,
     PUZZLE_1_DESCRIPTION,
     PUZZLE_2,
     PUZZLE_2_DESCRIPTION,
     Puzzle,
 )
-from pipeline import format_pipeline, run_pipeline
-from rendering import (
+from .pipeline import format_pipeline, run_pipeline
+from .rendering import (
     describe_assignment,
     print_header,
     run_propagation_checks,
 )
-from solver import SolveResult, solve
+from .solver import SolveResult, solve
 
 # How many freshly generated puzzles to run the full pipeline on, per
 # SPEC_step7.md's output requirements.

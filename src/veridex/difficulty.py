@@ -7,7 +7,7 @@ calibrate one against. See SPEC_step11.md for the full rationale.
 
 from enum import Enum
 
-from deduction import CaseSplitResult, PropagationStep, TacticStep
+from .deduction import CaseSplitResult, PropagationStep, TacticStep
 
 
 class Difficulty(Enum):

@@ -11,9 +11,9 @@ hand-constructed cases neither hardcoded puzzle happens to exercise - see
 SPEC_step4.md and SPEC_step6.md.
 """
 
-from expressions import And, AtLeastN, Expr, IsKnave, IsKnight, Iff, Implies, Not, Or
-from deduction import CaseSplitResult, PropagationStep, TacticStep, propagate
-from puzzles import Puzzle
+from .expressions import And, AtLeastN, Expr, IsKnave, IsKnight, Iff, Implies, Not, Or
+from .deduction import CaseSplitResult, PropagationStep, TacticStep, propagate
+from .puzzles import Puzzle
 
 
 def print_header(title: str) -> None:

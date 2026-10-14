@@ -2,7 +2,7 @@
 
 import pytest
 
-from expressions import (
+from veridex.expressions import (
     And,
     AtLeastN,
     AtMostN,

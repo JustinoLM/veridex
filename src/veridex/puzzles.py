@@ -8,7 +8,7 @@ only knows how to work with a `Puzzle` in the abstract.
 
 from dataclasses import dataclass
 
-from expressions import (
+from .expressions import (
     AtLeastN,
     And,
     Expr,

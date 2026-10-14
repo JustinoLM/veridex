@@ -1,7 +1,7 @@
 """Tests for the brute-force solver, including the Step 1 regression numbers."""
 
-from puzzles import PUZZLE_1, PUZZLE_2
-from solver import solve
+from veridex.puzzles import PUZZLE_1, PUZZLE_2
+from veridex.solver import solve
 
 
 def test_puzzle_1_matches_the_step_1_numbers():

@@ -39,7 +39,7 @@ demonstration puzzles pass True.
 import random
 from dataclasses import dataclass
 
-from expressions import (
+from .expressions import (
     And,
     AtLeastN,
     AtMostN,
@@ -53,8 +53,8 @@ from expressions import (
     IsKnight,
     Or,
 )
-from puzzles import Puzzle
-from solver import solve
+from .puzzles import Puzzle
+from .solver import solve
 
 # The pool of names generated puzzles draw people from, in order. Ada
 # and Bo match Puzzle 1's names; Cal onward reuses Puzzle 2's naming

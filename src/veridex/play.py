@@ -5,13 +5,13 @@ explanation in one shot. This module is what makes the project playable:
 it shows a puzzle without its answer, collects the player's own guess
 about each person through the terminal, checks that guess against the
 real solution, and only then reveals the full tactic/propagation/
-case-split explanation that main.py already knows how to produce.
+case-split explanation that demo.py already knows how to produce.
 
-This is a separate entry point from main.py (`uv run play.py`, vs.
-`uv run main.py`). It imports from the existing modules and reuses
+This is a separate entry point from demo.py (`uv run veridex-play`, vs.
+`uv run veridex-demo`). It imports from the existing modules and reuses
 pipeline.py's run_pipeline()/format_pipeline() for the reveal step - it
 does not reimplement any solving or explanation logic of its own, and
-it does not depend on main.py at all.
+it does not depend on demo.py at all.
 
 Per SPEC_step13.md, this step only wires up the two hardcoded puzzles
 (PUZZLE_1 and PUZZLE_2 from puzzles.py) - generated puzzles, difficulty
@@ -21,22 +21,23 @@ Step 14 (see SPEC_step14.md) restyles this module's terminal output using
 `rich` - panels, color, and styled prompts instead of raw print()/input().
 This is a purely visual change: every function below still drives the
 exact same menu logic, guess validation, correctness checking, and reveal
-sequence Step 13 established. main.py stays plain-text; the explanation
+sequence Step 13 established. demo.py stays plain-text; the explanation
 itself is computed by pipeline.py, and this module only wraps it in nicer
 presentation, described in detail on _reveal_explanation() below.
 """
 
 import re
+import textwrap
 
 from rich.console import Console
 from rich.panel import Panel
 from rich.prompt import Prompt
 from rich.table import Table
 
-from difficulty import Difficulty
-from pipeline import format_pipeline, run_pipeline
-from puzzles import PUZZLE_1, PUZZLE_1_DESCRIPTION, PUZZLE_2, PUZZLE_2_DESCRIPTION, Puzzle
-from solver import solve
+from .difficulty import Difficulty
+from .pipeline import format_pipeline, run_pipeline
+from .puzzles import PUZZLE_1, PUZZLE_1_DESCRIPTION, PUZZLE_2, PUZZLE_2_DESCRIPTION, Puzzle
+from .solver import solve
 
 # One shared Console for the whole play session, so every panel, prompt,
 # and styled line renders through the same rich output pipeline instead
@@ -226,7 +227,7 @@ def get_solution(puzzle: Puzzle) -> dict:
     """Brute-force the real solution to a puzzle, using the existing solver.
 
     Both PUZZLE_1 and PUZZLE_2 are already verified well-posed (Puzzle 1
-    by main.py's own regression check against Step 1, Puzzle 2 by the
+    by demo.py's own regression check against Step 1, Puzzle 2 by the
     Step 4 pipeline fully resolving it), so solve() is expected to return
     exactly one fully valid assignment here.
 
@@ -356,7 +357,7 @@ def _reveal_explanation(puzzle: Puzzle) -> None:
     get a panel with a distinct title and accent color, so a player can
     visually tell which technique explains which resolved value
     (SPEC_step14.md). The text inside each panel comes straight from
-    pipeline.format_pipeline(), the same function main.py prints from, so
+    pipeline.format_pipeline(), the same function demo.py prints from, so
     there is no output capturing or text re-parsing involved: this module
     only chooses where each already-separated section goes and what color
     it gets.
@@ -372,7 +373,7 @@ def _reveal_explanation(puzzle: Puzzle) -> None:
 
     for key in ("tactic", "propagation", "case_split", "final"):
         title, color = _SECTION_STYLES[key]
-        console.print(Panel(getattr(sections, key).strip(), title=title, border_style=color))
+        console.print(Panel(textwrap.dedent(getattr(sections, key)).strip(), title=title, border_style=color))
 
     difficulty_color = _DIFFICULTY_COLORS.get(result.difficulty, "white")
     console.print(
