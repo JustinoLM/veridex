@@ -176,6 +176,47 @@ Expr = (
     | AtMostN
 )
 
+# Maps each atomic node class to the attribute it reads from an
+# assignment, so code that needs to know which (person, attribute) pairs
+# an expression touches does not have to repeat that mapping.
+_ATOM_ATTRIBUTES = {
+    IsKnight: "is_knight",
+    IsKnave: "is_knight",
+    IsGuilty: "is_guilty",
+    IsInnocent: "is_guilty",
+}
+
+
+def atoms(expr: Expr) -> list[tuple[str, str]]:
+    """List every (person, attribute) pair that `expr` reads, in tree order.
+
+    Used to validate a puzzle up front: any pair returned here must exist
+    in every assignment the solver builds, otherwise evaluate() would
+    fail deep in the recursion with a bare KeyError.
+
+    Args:
+        expr: The root of the expression tree to inspect.
+
+    Returns:
+        One (person, attribute) pair per atomic node, duplicates included.
+
+    Raises:
+        TypeError: If `expr` is not one of the known node types.
+    """
+    match expr:
+        case IsKnight(person) | IsKnave(person) | IsGuilty(person) | IsInnocent(person):
+            return [(person, _ATOM_ATTRIBUTES[type(expr)])]
+        case And(exprs) | Or(exprs):
+            return [pair for sub in exprs for pair in atoms(sub)]
+        case Not(sub):
+            return atoms(sub)
+        case Implies(left, right) | Iff(left, right):
+            return atoms(left) + atoms(right)
+        case ExactlyN(_, exprs) | AtLeastN(_, exprs) | AtMostN(_, exprs):
+            return [pair for sub in exprs for pair in atoms(sub)]
+        case _:
+            raise TypeError(f"Unknown expression node: {expr!r}")
+
 
 def evaluate(expr: Expr, assignment: dict) -> bool:
     """Recursively compute the truth value of an expression tree.

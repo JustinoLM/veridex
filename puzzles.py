@@ -19,7 +19,12 @@ from expressions import (
     Iff,
     Implies,
     Or,
+    atoms,
 )
+
+# The only attributes the expression language can talk about (see
+# IsKnight/IsKnave and IsGuilty/IsInnocent in expressions.py).
+KNOWN_ATTRIBUTES = ("is_knight", "is_guilty")
 
 
 @dataclass
@@ -48,6 +53,56 @@ class Puzzle:
     attributes: list[str]
     statements: dict[str, Expr]
     constraints: list[Expr]
+
+    def __post_init__(self) -> None:
+        """Reject a malformed puzzle at construction time.
+
+        Without this, a typo such as a statement naming someone who is
+        not in `people` only surfaces later as a bare KeyError deep inside
+        evaluate(). Checking here points at the real mistake instead.
+
+        Raises:
+            ValueError: If `people` is empty or has duplicates, an
+                attribute is unknown or duplicated, a statement belongs
+                to someone not in `people`, or any statement or
+                constraint reads a person or attribute the puzzle does
+                not define.
+        """
+        if not self.people:
+            raise ValueError(f"Puzzle {self.name!r} has no people.")
+        if len(set(self.people)) != len(self.people):
+            raise ValueError(f"Puzzle {self.name!r} lists a person more than once: {self.people}.")
+
+        unknown_attributes = [a for a in self.attributes if a not in KNOWN_ATTRIBUTES]
+        if unknown_attributes:
+            raise ValueError(
+                f"Puzzle {self.name!r} uses unknown attribute(s) {unknown_attributes}; "
+                f"expected a subset of {list(KNOWN_ATTRIBUTES)}."
+            )
+        if len(set(self.attributes)) != len(self.attributes):
+            raise ValueError(f"Puzzle {self.name!r} lists an attribute more than once.")
+
+        for speaker in self.statements:
+            if speaker not in self.people:
+                raise ValueError(
+                    f"Puzzle {self.name!r} has a statement by {speaker!r}, "
+                    f"who is not in people {self.people}."
+                )
+
+        labelled_exprs = [(f"{speaker}'s statement", e) for speaker, e in self.statements.items()]
+        labelled_exprs += [(f"constraint {i + 1}", e) for i, e in enumerate(self.constraints)]
+        for label, expr in labelled_exprs:
+            for person, attribute in atoms(expr):
+                if person not in self.people:
+                    raise ValueError(
+                        f"Puzzle {self.name!r}: {label} mentions {person!r}, "
+                        f"who is not in people {self.people}."
+                    )
+                if attribute not in self.attributes:
+                    raise ValueError(
+                        f"Puzzle {self.name!r}: {label} reads {attribute!r}, "
+                        f"which is not in attributes {self.attributes}."
+                    )
 
 
 # ---------------------------------------------------------------------------

@@ -6,15 +6,7 @@ the only thing that knows how to run the pair of them and narrate the
 results in plain language.
 """
 
-from deduction import (
-    CaseSplitResult,
-    PropagationStep,
-    TacticStep,
-    case_split_fallback,
-    propagate_round,
-    try_resolve_knight_status,
-)
-from difficulty import Difficulty, classify_difficulty
+from difficulty import Difficulty
 from generator import (
     GENERATED_PEOPLE,
     NAME_POOL,
@@ -30,21 +22,13 @@ from puzzles import (
     PUZZLE_2_DESCRIPTION,
     Puzzle,
 )
+from pipeline import format_pipeline, run_pipeline
 from rendering import (
     describe_assignment,
     print_header,
-    render_case_split,
-    render_propagation_step,
-    render_tactic_step,
     run_propagation_checks,
 )
 from solver import SolveResult, solve
-
-# Safety cap on how many rounds the tactic/propagation loop is allowed to
-# run for before giving up on reaching a fixed point. Puzzles this size
-# are expected to stabilize in one or two rounds; this cap exists only to
-# guarantee termination if that assumption is ever wrong.
-MAX_PIPELINE_ROUNDS = 10
 
 # How many freshly generated puzzles to run the full pipeline on, per
 # SPEC_step7.md's output requirements.
@@ -183,24 +167,15 @@ def print_regression_check(result: SolveResult) -> None:
 
 
 def run_deduction_pipeline(puzzle: Puzzle, description: str) -> tuple[dict, Difficulty]:
-    """Run the full Step 4 deduction pipeline against `puzzle` and report on it.
+    """Run the full deduction pipeline against `puzzle` and narrate it.
 
-    Combines the three techniques described in SPEC_step4.md:
-    1. The Step 3 tactic (try_resolve_knight_status) and backward
-       propagation (propagate_round), alternated round by round until a
-       round resolves and forces nothing new (a fixed point).
-    2. The case-split fallback, scoped to whichever (person, attribute)
-       values are still unknown once that fixed point is reached.
-
-    Unlike Step 3's tactic-only demonstration, this is expected to fully
-    solve both puzzles - see SPEC_step4.md's "Expected results" for the
-    exact numbers this should produce for each one.
-
-    Step 11 adds a difficulty classification (see SPEC_step11.md) on top
-    of the same run: classify_difficulty() looks purely at which of the
-    three techniques above actually had to contribute, using the tactic
-    and propagation steps collected across every round plus whichever
-    CaseSplitResult (or None) the case-split section below produced.
+    The computation lives in pipeline.run_pipeline() and the wording in
+    pipeline.format_pipeline(); this function only prints the result in
+    the fixed section order (tactic, propagation, case-split, final
+    solution, difficulty). It combines the three techniques described in
+    SPEC_step4.md: the Step 3 tactic and backward propagation alternated
+    until a fixed point, then the case-split fallback for whatever is
+    still unknown, followed by the Step 11 difficulty classification.
 
     Args:
         puzzle: The puzzle to solve.
@@ -219,135 +194,28 @@ def run_deduction_pipeline(puzzle: Puzzle, description: str) -> tuple[dict, Diff
     print(description)
     print()
 
-    # Nothing is known at the start - the pipeline builds up everything
-    # it knows purely from what the tactic and propagation resolve.
-    assignment: dict = {}
-    tactic_rounds: list[tuple[int, list[TacticStep]]] = []
-    propagation_rounds: list[tuple[int, list[PropagationStep]]] = []
+    result = run_pipeline(puzzle)
+    sections = format_pipeline(puzzle, result)
 
-    for round_number in range(1, MAX_PIPELINE_ROUNDS + 1):
-        # try_resolve_knight_status() now returns TacticStep records that
-        # already capture the contradiction that ruled out the losing
-        # hypothesis (see solver.py), so there is no need to snapshot the
-        # assignment beforehand and reconstruct that after the fact.
-        newly_resolved = try_resolve_knight_status(puzzle, assignment)
-        if newly_resolved:
-            tactic_rounds.append((round_number, newly_resolved))
-
-        # Propagation runs after the tactic in the same round, so it can
-        # see anything the tactic just resolved (e.g. propagating from a
-        # statement whose speaker's status was only just determined).
-        # propagate_round() now also returns the flat list of
-        # PropagationStep records behind those contributions, which is
-        # what render_propagation_step() below actually needs.
-        propagation_contributions, propagation_steps = propagate_round(puzzle, assignment)
-        if propagation_steps:
-            propagation_rounds.append((round_number, propagation_steps))
-
-        if not newly_resolved and not propagation_contributions:
-            # Neither technique made progress this round - a fixed
-            # point. Whatever remains unknown is left to the case-split
-            # fallback below.
-            break
-    else:
-        # The for/else only runs if the loop finished without `break`,
-        # i.e. the round cap was hit without ever reaching a fixed
-        # point. Not expected for puzzles this size, so reported as a
-        # warning rather than silently treated as normal.
-        print(
-            f"WARNING: hit the {MAX_PIPELINE_ROUNDS}-round safety cap without "
-            "reaching a fixed point."
-        )
+    if sections.warning:
+        print(sections.warning)
         print()
 
-    # Step 6: every resolved value now gets a natural-language
-    # explanation using whichever technique actually resolved it - the
-    # tactic's render_tactic_step() (Step 5), propagation's
-    # render_propagation_step(), and case-split's render_case_split()
-    # (both new this step, see SPEC_step6.md).
-    print("Tactic (hypothesize-and-check on knight/knave status):")
-    print()
-    if tactic_rounds:
-        for round_index, (round_number, steps) in enumerate(tactic_rounds):
-            if round_index > 0:
-                print()
-            print(f"  Round {round_number}:")
-            for step in steps:
-                print(f"    - {render_tactic_step(step)}")
-    else:
-        # Required by SPEC_step5.md: state this explicitly (as with
-        # Puzzle 2, where the tactic resolves nobody) rather than just
-        # printing nothing with no explanation of why.
-        print("  The tactic made no progress on this puzzle.")
+    for heading, body in (
+        ("Tactic (hypothesize-and-check on knight/knave status):", sections.tactic),
+        ("Backward propagation:", sections.propagation),
+        ("Case-split fallback:", sections.case_split),
+        ("Final solution:", sections.final),
+    ):
+        print(heading)
+        print()
+        print(body)
+        print()
+
+    print(f"Difficulty: {sections.difficulty}")
     print()
 
-    print("Backward propagation:")
-    print()
-    if propagation_rounds:
-        for round_index, (round_number, steps) in enumerate(propagation_rounds):
-            if round_index > 0:
-                print()
-            print(f"  Round {round_number}:")
-            for step in steps:
-                print(f"    - {render_propagation_step(step)}")
-    else:
-        # Required by SPEC_step4.md (and still true in Step 6, per
-        # SPEC_step6.md's stated limitation): state this explicitly
-        # rather than just omitting the section when propagation
-        # contributes nothing.
-        print("  Propagation made no additional progress on this puzzle.")
-    print()
-
-    all_keys = [
-        (person, attribute) for person in puzzle.people for attribute in puzzle.attributes
-    ]
-    unknown_before_case_split = [key for key in all_keys if key not in assignment]
-
-    print("Case-split fallback:")
-    print()
-    # Kept as None unless the fallback is actually invoked below, so
-    # classify_difficulty() can tell "never needed" apart from "needed
-    # but somehow resolved nothing" purely from this variable, without
-    # re-deriving unknown_before_case_split itself.
-    case_split_result: CaseSplitResult | None = None
-    if not unknown_before_case_split:
-        print("  Not needed - the tactic and propagation already resolved everything.")
-    else:
-        case_split_result = case_split_fallback(puzzle, assignment)
-        if case_split_result.winning_combination is not None:
-            for line in render_case_split(case_split_result):
-                print(f"  {line}")
-        else:
-            print(
-                f"  WARNING: expected exactly one consistent completion of the "
-                f"{len(case_split_result.remaining_unknowns)} remaining unknown value(s); "
-                "this puzzle may be ambiguous or broken."
-            )
-    print()
-
-    print("Final solution:")
-    print()
-    still_unknown = [key for key in all_keys if key not in assignment]
-    if still_unknown:
-        names = ", ".join(f"{person.capitalize()}.{attribute}" for person, attribute in still_unknown)
-        print(f"  WARNING: could not fully resolve this puzzle. Still unknown: {names}.")
-    else:
-        for sentence in describe_assignment(puzzle, assignment):
-            print(f"  {sentence}")
-    print()
-
-    # Step 11: classify difficulty from exactly what this run of the
-    # pipeline needed. tactic_rounds/propagation_rounds are flattened
-    # here (round number discarded) since classify_difficulty() only
-    # cares whether each technique contributed at all, not when.
-    all_tactic_steps = [step for _, steps in tactic_rounds for step in steps]
-    all_propagation_steps = [step for _, steps in propagation_rounds for step in steps]
-    difficulty = classify_difficulty(all_tactic_steps, all_propagation_steps, case_split_result)
-
-    print(f"Difficulty: {difficulty.value.upper()}")
-    print()
-
-    return assignment, difficulty
+    return result.assignment, result.difficulty
 
 
 def run_generated_puzzles() -> list[Difficulty]:
@@ -585,7 +453,7 @@ def print_difficulty_summary(
         # missed) by silence.
         print(
             "No puzzle in this run classified as MEDIUM. This matches "
-            "SPEC_step11.md's expectation: propagation has not resolved a "
+            "the documented expectation: propagation has not resolved a "
             "single fact on any real puzzle generated through Steps 7-10, "
             "only in Step 4/10's standalone constructed checks - so this "
             "reflects the current generator and grammar, not a bug in "
@@ -602,7 +470,9 @@ def print_difficulty_summary(
         ),
     ]
     for check_description, passed in expectation_checks:
-        status = "PASS" if passed else "WARNING - does not match SPEC_step11.md's expectation"
+        # Generated puzzles are unseeded, so a mismatch on the Step 9
+        # demo can be a legitimate run-to-run variation, not a bug.
+        status = "PASS" if passed else "WARNING - does not match the expected tier"
         print(f"  [{status}] {check_description}")
     print()
 
