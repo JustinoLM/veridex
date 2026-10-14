@@ -11,7 +11,7 @@ A Knights & Knaves logic-puzzle toolkit in Python: a brute-force solver, a
 human-style deduction engine that explains *how* it solves each puzzle, a
 random puzzle generator, and an interactive terminal game.
 
-<!-- TODO: record docs/images/demo.gif (see "Recording the demo" in the chat notes) -->
+<!-- demo.gif is recorded from docs/demo.tape with VHS: `vhs docs/demo.tape` -->
 <p align="center">
   <img src="docs/images/demo.gif" width="720" alt="Playing a puzzle in the terminal and reading the step-by-step explanation">
 </p>
@@ -24,19 +24,48 @@ declare their people, attributes, statements and constraints as plain data
 
 ## Example
 
-<!-- TODO: replace the explanation below with the exact, unedited output of `uv run veridex-demo` for Puzzle 2 -->
+The exact output of `uv run veridex-demo` for the second built-in puzzle:
 
 ```text
+======================================================================
+FULL DEDUCTION PIPELINE - The three-knave conditional
+======================================================================
+
+Three people, Ada, Bo, and Cal, are each either a knight (always tells
+the truth) or a knave (always lies). There is no guilt axis in this
+puzzle - only knight/knave status.
+
+Constraint: at least one of them is a knave.
+
 Statements:
   Ada says: "Cal is a knave, and Cal and Bo are the same type."
   Bo says:  "If at least two of us are knaves, then all of us are knaves."
   Cal says: "None of us are knaves, or exactly two of us are knaves."
 
-Tactic: The tactic made no progress on this puzzle.
-Backward propagation: Propagation made no additional progress on this puzzle.
+Tactic (hypothesize-and-check on knight/knave status):
+
+  The tactic made no progress on this puzzle.
+
+Backward propagation:
+
+  Propagation made no additional progress on this puzzle.
+
 Case-split fallback:
-  [full case-split explanation here]
-Final solution: Ada is a knave. Bo is a knave. Cal is a knight.
+
+  3 things were still unknown: whether Ada is a knight, whether Bo is a knight, and whether Cal is a knight. Rather than being able to deduce the answer directly, all 8 possible combinations were tried until the one that fit was found.
+  The combination that fit: Ada is a knave, Bo is a knave, and Cal is a knight.
+  That combination holds up against everyone's statement:
+      Ada's statement turns out to be false — which fits, since Ada is a knave.
+      Bo's statement turns out to be false — which fits, since Bo is a knave.
+      Cal's statement turns out to be true — which fits, since Cal is a knight.
+  Not every combination works, though - for example, the one where Ada is a knight, Bo is a knight, and Cal is a knight was ruled out: it needed the puzzle's constraint to come out true, but that actually came out false.
+
+Final solution:
+
+  Ada is a knave.
+  Bo is a knave.
+  Cal is a knight.
+
 Difficulty: HARD
 ```
 
